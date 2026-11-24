@@ -15,8 +15,10 @@
 #     what the pattern reduces to, and the open step
 
 [registration]
-version = 1
+version = 2
 registered = "2026-11-24"
+# v2 changes ONLY [ranges].allowed (adds 1e11 and 1e12, reachable now that primes stream).
+# Every test, threshold and setting below is identical to v1 (fingerprint 135fd394a9b3ad12).
 author = "arrancarcero, with Claude"
 seen_before_registration = [
   "twin counts vs Hardy-Littlewood (1e6 to 1e9)",
@@ -24,13 +26,15 @@ seen_before_registration = [
   "transition results up to mod 72, lag 3, at 1e10 against simulated and gap-rule nulls",
   "Fano B = -1.415 +- 0.017 at 1e10",
   "zeta zero spacing, candles and walk results with planted or random comparison data",
+  "v1 results at 1e7 to 1e10, all registered tests passing (results/ledger-v1-1e10-20261124.json)",
+  "v1 explore --dig at 1e10: transitions mod 4, 8, 20, 40, 60 fully explained by the real gap rule",
 ]
 
 [primes]
 start = 5
 
 [ranges]
-allowed = [1e7, 1e8, 1e9, 1e10]   # a run must use one of these as max_n
+allowed = [1e7, 1e8, 1e9, 1e10, 1e11, 1e12]   # a run must use one of these as max_n
 default = 1e8
 
 [thresholds]

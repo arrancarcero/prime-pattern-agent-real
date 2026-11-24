@@ -30,8 +30,10 @@ def test_tests_cannot_change_without_new_version(tmp_path):
     p.write_text(p.read_text().replace("z_survive = 4.0", "z_survive = 3.0"))
     with pytest.raises(RegistrationError):
         load(p)                                 # changed tests, same version: refused
-    p.write_text(p.read_text().replace("version = 1", "version = 2"))
-    assert load(p)["_version"] == 2             # a new version is allowed and recorded
+    import re
+    v = int(re.search(r"version = (\d+)", p.read_text()).group(1))
+    p.write_text(p.read_text().replace(f"version = {v}", f"version = {v + 1}"))
+    assert load(p)["_version"] == v + 1         # a new version is allowed and recorded
 
 
 def test_only_registered_ranges(tmp_path):
