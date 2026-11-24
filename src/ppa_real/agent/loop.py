@@ -82,7 +82,7 @@ def run_agent(cfg: dict, intent: str = "all") -> Ledger:
             ledger.meta["graveyard_skipped"] = skipped
             print(f"graveyard: skipped {len(skipped)} buried idea(s) (fingerprint {GRAVE_FP}); "
                   f"first: {skipped[0]['key']} -- {skipped[0]['why'][:90]}")
-            print("  to test them anyway: ppa run --dig   (or raise range.max_n past where they failed)")
+            print("  to test them anyway: ppa-real run --dig   (or run at a registered range past where they failed)")
 
     counts = Counter(f.label for f in ledger.findings)
     print("summary:", dict(counts))
