@@ -27,8 +27,28 @@ ppa-real prereg                    # the registered tests, version and fingerpri
 ppa-real run --max 1e8             # every skill, at a registered range (1e7, 1e8, 1e9, 1e10)
 ppa-real run --intent twins --max 1e9
 ppa-real run --intent explore      # the planner, transitions only
+ppa-real run --max 1e11 --gpu      # NVIDIA GPU (pip install cupy-cuda12x), cross-checked against the CPU
 ppa-real skills | truth | contract | graveyard
 ```
+
+## Speed and memory: streaming, cache, GPU
+
+Primes are streamed block by block; every skill keeps only running totals, so memory no longer
+grows with the range (the full 1e10 run used 3.9 GB). From 1e9 up, each 1e9-wide segment is
+sieved once and cached on disk as its first prime plus 2-byte gaps (`.prime_cache/`, about
+0.9 GB for 1e10 and 8 GB for 1e11); later passes read the cache. `--cache none` turns it off.
+
+`--gpu` sieves on an NVIDIA GPU with one CUDA kernel launch per block (CuPy). Before a GPU run is
+trusted, the same block is sieved on the GPU and the CPU and must match exactly; on any mismatch
+the run falls back to the CPU and the ledger says so (`meta.backend`, `meta.cross_check`). None of
+this changes a test: it only changes how fast the same primes arrive.
+
+Checked: the streaming version reproduces the v1 ledgers exactly at 1e8 and 1e9, and the
+author's 1e10 PC ledger except for the gates overflow fix, timing text, last-digit float rounding
+and the order of exactly tied FFT peaks (periods 6 and 3, and 4.667 and 3.5, have identical power).
+
+Registration v2 adds the ranges 1e11 and 1e12 and changes nothing else; it was committed before
+any run at those sizes.
 
 ## What is in it
 
