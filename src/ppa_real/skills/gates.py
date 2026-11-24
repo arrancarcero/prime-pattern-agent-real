@@ -6,8 +6,16 @@ from ppa_real.skills.base import Skill
 
 
 def run(ctx, **_):
-    P = ctx.P_test[ctx.P_test > 3]
-    g, c = np.unique(P % 24, return_counts=True)
+    from ppa_real.core.primestore import to_numpy
+    cnt = np.zeros(24, dtype=np.int64)
+    first = None
+    for P in ctx.primes.blocks(*ctx.test):
+        cnt += to_numpy(ctx.primes.xp.bincount(P % 24, minlength=24))
+        if first is None and len(P) > 2001:
+            first = to_numpy(P[:2001])
+    g = np.nonzero(cnt)[0]
+    c = cnt[g]
+    P = first
     spread = float((c.max() - c.min()) / c.mean())
     a, b = P[:2000], P[1:2001]
     # reduce before multiplying: primes near 1e10 overflow 64-bit products (fixed 2026-11-24)

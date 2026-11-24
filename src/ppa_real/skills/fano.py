@@ -9,7 +9,7 @@ and we count primes one each instead of weighting by log p.
 import statistics
 
 from ppa_real.core.ledger import Finding
-from ppa_real.core.stats import B_MS, fano_curve
+from ppa_real.core.stats import B_MS, fano_curve_stream
 from ppa_real.skills.base import Skill
 from ppa_real.truth import truth_tuple
 
@@ -17,8 +17,8 @@ FAIR_WINDOWS = (1_000, 10_000)
 
 
 def run(ctx, **_):
-    train = fano_curve(ctx.P_train, *ctx.train)
-    test = fano_curve(ctx.P_test, *ctx.test)
+    train = fano_curve_stream(ctx.primes, *ctx.train)
+    test = fano_curve_stream(ctx.primes, *ctx.test)
     fair = [r["B_estimate"] for r in train + test if r["H"] in FAIR_WINDOWS]
     B_hat = statistics.mean(fair)
     spread = (max(fair) - min(fair)) / 2

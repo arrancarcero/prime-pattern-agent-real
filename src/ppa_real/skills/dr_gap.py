@@ -7,20 +7,38 @@ from ppa_real.core.stats import holdout_score, residual_z
 from ppa_real.skills.base import Skill
 
 
-def _tables(P):
-    P = P[P > 3]
-    a, b = dr(P[:-1]), dr(P[1:])
+GMAX = 4096          # prime gaps below 1e12 are under 600
+
+
+def _tables(store, lo, hi):
+    """One pass: dr transition counts, gap counts per class mod 6, and (class, dr) counts."""
+    from ppa_real.core.primestore import to_numpy
+    lut = np.full(10, 0, dtype=np.int64)
+    for i, r in enumerate(UNITS_9):
+        lut[r] = i
+    T = np.zeros(36, dtype=np.int64)
+    G = {1: np.zeros(GMAX, dtype=np.int64), 5: np.zeros(GMAX, dtype=np.int64)}
+    nr = np.zeros(6 * 10, dtype=np.int64)
+    for P, _ in store.blocks_with_carry(lo, hi, carry=1):
+        xp = store.xp
+        L = xp.asarray(lut)
+        base, nxt = P[:-1], P[1:]
+        a, b = dr(base), dr(nxt)
+        T += to_numpy(xp.bincount(L[a] * 6 + L[b], minlength=36))
+        g = nxt - base
+        c6 = base % 6
+        for cls in (1, 5):
+            G[cls] += to_numpy(xp.bincount(g[c6 == cls], minlength=GMAX))[:GMAX]
+        nr += to_numpy(xp.bincount(c6 * 10 + a, minlength=60))
+    T = T.reshape(6, 6).astype(np.float64)
     idx = {r: i for i, r in enumerate(UNITS_9)}
-    T = np.zeros((6, 6))
-    np.add.at(T, (np.vectorize(idx.get)(a), np.vectorize(idx.get)(b)), 1)
-    g, base = np.diff(P), P[:-1]
     N = np.zeros((6, 6))
     for cls in (1, 5):
-        m = base % 6 == cls
-        gaps, cnt = np.unique(g[m], return_counts=True)
+        gaps = np.nonzero(G[cls])[0]
+        cnt = G[cls][gaps]
         pg = cnt / cnt.sum()
         for r in (r for r in UNITS_9 if r % 3 == cls % 3):
-            n_r = np.sum(m & (dr(base) == r))
+            n_r = nr[cls * 10 + r]
             for gap, w in zip(gaps, pg):
                 nxt = int(dr(r + gap))
                 if nxt in idx:
@@ -30,8 +48,8 @@ def _tables(P):
 
 def run(ctx, **_):
     th = ctx.cfg["thresholds"]
-    T1, N1 = _tables(ctx.P_train)
-    T2, N2 = _tables(ctx.P_test)
+    T1, N1 = _tables(ctx.primes, *ctx.train)
+    T2, N2 = _tables(ctx.primes, *ctx.test)
     z, corr = holdout_score(residual_z(T1, N1), residual_z(T2, N2))
     survived = z > th["z_survive"] and corr > th["corr_survive"]
     raw = T2 / T2.sum(axis=1, keepdims=True)

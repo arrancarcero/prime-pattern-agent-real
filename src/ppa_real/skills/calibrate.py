@@ -1,12 +1,11 @@
 from ppa_real.core.ledger import Finding
-from ppa_real.core.sieve import real_primes
 from ppa_real.skills.base import Skill
 from ppa_real.truth import truth_tuple
 
 
 def run(ctx, **_):
     max_n = ctx.test[1]
-    total = len(real_primes(0, ctx.train[0])) + len(ctx.P_train) + len(ctx.P_test)   # primes >= 5
+    total = ctx.primes.count(0, max_n)                               # primes >= 5, streamed
     v = truth_tuple.verify("pi", max_n, total + 2)                 # theorem counts 2 and 3 too
     label = "established" if v.ok else "check"
     note = "no known value for this max_n" if v.ok is None else ("matches" if v.ok else v.note)

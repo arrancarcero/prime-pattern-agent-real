@@ -15,6 +15,14 @@ class Context:
     P_train: np.ndarray
     P_test: np.ndarray
     cache: dict = field(default_factory=dict)
+    store: object = None     # PrimeStore: primes stream block by block
+
+    @property
+    def primes(self):
+        if self.store is None:
+            from ppa_real.core.primestore import default_store
+            self.store = default_store()
+        return self.store
 
 
 @dataclass

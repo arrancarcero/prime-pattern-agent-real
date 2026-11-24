@@ -9,7 +9,7 @@ WHEELS = (2, 3, 4, 5, 6, 10, 12, 15, 30, 210)
 def run(ctx, length=2 ** 20, top=10, **_):
     lo = ctx.test[0]
     x = np.zeros(length)
-    sel = ctx.P_test[(ctx.P_test >= lo) & (ctx.P_test < lo + length)] - lo
+    sel = ctx.primes.window(lo, min(lo + length, ctx.test[1])) - lo
     x[sel] = 1.0
     x -= x.mean()
     S = np.abs(np.fft.rfft(x)) ** 2

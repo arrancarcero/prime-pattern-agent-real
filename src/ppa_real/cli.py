@@ -22,6 +22,9 @@ def main(argv=None):
     r.add_argument("--max", type=float, help="one of the registered ranges in prereg.toml")
     r.add_argument("--prereg", default="prereg.toml")
     r.add_argument("--dig", action="store_true", help="ignore the graveyard: retest buried ideas")
+    r.add_argument("--gpu", action="store_true", help="sieve and count on an NVIDIA GPU (CuPy), cross-checked against the CPU")
+    r.add_argument("--cache", default=".prime_cache",
+                   help="folder for the prime cache (2 bytes per prime; 'none' to sieve every pass)")
     p = sub.add_parser("prereg", help="show the registration, its version and fingerprint")
     p.add_argument("--prereg", default="prereg.toml")
     sub.add_parser("skills", help="list skills and their yardsticks")
@@ -40,6 +43,7 @@ def main(argv=None):
             set_range(reg, a.max)
         if a.dig:
             reg.setdefault("graveyard", {})["enforce"] = False
+        reg["compute"] = {"gpu": a.gpu, "cache": None if a.cache.lower() == "none" else a.cache}
         print(f"pre-registration v{reg['_version']} ({reg['_fingerprint']}), primes from "
               f"{reg['primes']['start']}, range {reg['range']['max_n']:.0e}")
         run_agent(reg, a.intent)

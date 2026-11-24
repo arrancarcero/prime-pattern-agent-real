@@ -16,30 +16,47 @@ from math import gcd
 import numpy as np
 
 from ppa_real.core.ledger import Finding
-from ppa_real.core.stats import holdout_score, residual_z, transition_table
+from ppa_real.core.stats import holdout_score, residual_z
 from ppa_real.skills.base import Skill
 from ppa_real.truth.known_results import match_transition_residual
 
 
-def _vs_independence(P, M, lag):
+def _stream_tables(store, lo, hi, M, lag):
+    """One pass over the real primes in [lo, hi): full M x M transition counts, and for the gap
+    rule the counts of (p mod C, gap mod M), C = gcd(M, 210). Only these totals are kept."""
+    from ppa_real.core.primestore import to_numpy
+    C = gcd(M, 210)
+    T = np.zeros(M * M, dtype=np.int64)
+    H = np.zeros(C * M, dtype=np.int64)
+    for P, _ in store.blocks_with_carry(lo, hi, carry=lag):
+        xp = store.xp
+        a, b = P[:-lag], P[lag:]
+        T += to_numpy(xp.bincount((a % M) * M + (b % M), minlength=M * M))
+        H += to_numpy(xp.bincount((a % C) * M + ((b - a) % M), minlength=C * M))
+    return T.reshape(M, M).astype(np.float64), H.reshape(C, M).astype(np.float64)
+
+
+def _used(Tfull, M):
+    return [r for r in range(M) if Tfull[r].sum() > 0.001 * Tfull.sum() / M]
+
+
+def _vs_independence(Tfull, M):
     """Real transitions against independence built from the same real primes."""
-    T, used = transition_table(P, M, lag)
+    used = _used(Tfull, M)
+    T = Tfull[np.ix_(used, used)]
     E = np.outer(T.sum(axis=1), T.sum(axis=0)) / T.sum()
     return residual_z(T, E), used, T
 
 
-def _gap_rule(P, M, lag, used):
+def _gap_rule(Tfull, H, M, used):
     C = gcd(M, 210)
-    d = P[lag:] - P[:-lag]
-    base = P[:-lag]
     E = np.zeros((len(used), len(used)))
     pos = {r: i for i, r in enumerate(used)}
     for c in {r % C for r in used}:
-        m = base % C == c
-        h = np.bincount(d[m] % M, minlength=M).astype(float)
+        h = H[c].copy()
         h /= h.sum()
         for a in (r for r in used if r % C == c):
-            n_a = np.count_nonzero(base % M == a)
+            n_a = Tfull[a].sum()
             for b in used:
                 E[pos[a], pos[b]] += n_a * h[(b - a) % M]
     return E
@@ -49,8 +66,10 @@ def run(ctx, M=9, lag=1, **_):
     th = ctx.cfg["thresholds"]
     name = f"transitions mod {M}, lag {lag}"
     params = {"M": M, "lag": lag}
-    ZA_tr, used, T_tr = _vs_independence(ctx.P_train, M, lag)
-    ZA_te, used_te, T_te = _vs_independence(ctx.P_test, M, lag)
+    Tf_tr, H_tr = _stream_tables(ctx.primes, *ctx.train, M, lag)
+    Tf_te, H_te = _stream_tables(ctx.primes, *ctx.test, M, lag)
+    ZA_tr, used, T_tr = _vs_independence(Tf_tr, M)
+    ZA_te, used_te, T_te = _vs_independence(Tf_te, M)
     if used != used_te or len(used) < 2:
         return [Finding("transitions", name, "check", "classes differ between train and test",
                         params=params)]
@@ -62,8 +81,8 @@ def run(ctx, M=9, lag=1, **_):
     zB = cB = None
     survB = False
     if not tautology:
-        ZB_tr = residual_z(T_tr, _gap_rule(ctx.P_train, M, lag, used))
-        ZB_te = residual_z(T_te, _gap_rule(ctx.P_test, M, lag, used))
+        ZB_tr = residual_z(T_tr, _gap_rule(Tf_tr, H_tr, M, used))
+        ZB_te = residual_z(T_te, _gap_rule(Tf_te, H_te, M, used))
         zB, cB = holdout_score(ZB_tr, ZB_te)
         survB = zB > th["z_survive"] and cB > th["corr_survive"]
 

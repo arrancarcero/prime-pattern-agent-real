@@ -38,6 +38,40 @@ def holdout_score(Z_train: np.ndarray, Z_test: np.ndarray) -> tuple[float, float
     return score, corr
 
 
+def fano_curve_stream(store, lo: int, hi: int, Hs=(100, 1_000, 10_000, 100_000)) -> list[dict]:
+    """fano_curve with the primes streamed: per window size, sum (count - expected)^2 over
+    complete windows block by block, carrying the window that straddles a block border."""
+    N = (lo + hi) / 2
+    Hs = [H for H in Hs if (hi - lo) // H >= 10]
+    nb = {H: (hi - lo) // H for H in Hs}
+    sq = {H: 0.0 for H in Hs}
+    tot = {H: 0 for H in Hs}
+    done = {H: 0 for H in Hs}          # windows finished so far
+    carry = {H: np.zeros(0, dtype=np.int64) for H in Hs}
+    for a, b, P in store.ranged_blocks(lo, hi, np):
+        last = b >= hi
+        for H in Hs:
+            end_bin = nb[H] if last else min(nb[H], (b - lo) // H)   # windows complete after this block
+            sel = P[P < lo + nb[H] * H]
+            bins = np.concatenate([carry[H], (sel - lo) // H])
+            keep = bins < end_bin
+            c = np.bincount(bins[keep] - done[H], minlength=end_bin - done[H])
+            mids = lo + H * (np.arange(done[H], end_bin) + 0.5)
+            e = H / np.log(mids)
+            sq[H] += float(np.sum((c - e) ** 2))
+            tot[H] += int(c.sum())
+            carry[H] = bins[~keep]
+            done[H] = end_bin
+    rows = []
+    for H in Hs:
+        F = (sq[H] / nb[H]) / (tot[H] / nb[H])
+        L = math.log(N)
+        lead = math.log(N / H) / L
+        rows.append({"H": H, "fano": round(F, 4), "reference": round(lead, 4),
+                     "reference_with_B": round(lead + B_MS / L, 4), "B_estimate": round((F - lead) * L, 3)})
+    return rows
+
+
 def fano_curve(P: np.ndarray, lo: int, hi: int, Hs=(100, 1_000, 10_000, 100_000)) -> list[dict]:
     """Fano factor of prime counts in windows (trend removed) and the reference
     log(N/H)/log(N) from the Montgomery-Soundararajan variance conjecture."""

@@ -28,16 +28,33 @@ import math
 import numpy as np
 
 from ppa_real.core.ledger import Finding
-from ppa_real.core.sieve import real_primes, small_primes
+from ppa_real.core.sieve import small_primes
 from ppa_real.skills.base import Skill
 
 C2 = 0.6601618158468696
 S2 = 2 * C2                                      # singular series of {0, 2}
 
 
-def lower_twins(max_x: int) -> np.ndarray:
-    P = real_primes(5, max_x)
-    return P[:-1][np.diff(P) == 2]
+def lower_twins(max_x: int, store=None) -> np.ndarray:
+    """All lower twins p >= 5 with p + 2 < max_x, streamed: only the twins are kept."""
+    from ppa_real.core.primestore import default_store, to_numpy
+    store = store or default_store()
+    out = []
+    for P, _ in store.blocks_with_carry(5, max_x, carry=1):
+        xp = store.xp
+        out.append(to_numpy(P[:-1][(P[1:] - P[:-1]) == 2]))
+    return np.concatenate(out) if out else np.array([], dtype=np.int64)
+
+
+def count_at_distance(T: np.ndarray, h: int, chunk: int = 50_000_000) -> int:
+    """How many t in T have t + h in T (T sorted), in chunks to bound memory."""
+    n = 0
+    for i in range(0, len(T), chunk):
+        x = T[i:i + chunk] + h
+        j = np.searchsorted(T, x)
+        ok = j < len(T)
+        n += int(np.count_nonzero(T[j[ok]] == x[ok]))
+    return n
 
 
 def r_of_h(h: np.ndarray, p_max: int = 10 ** 5) -> np.ndarray:
@@ -71,7 +88,7 @@ def run(ctx, max_x=None, **_):
     stretch = int(float(reg.get("fano_stretch", 1e7)))
     p_max = int(float(reg.get("singular_series_primes", 1e5)))
     from scipy.integrate import quad
-    T = lower_twins(max_x)
+    T = lower_twins(max_x, ctx.primes)
     out = []
 
     # 1. count
@@ -86,7 +103,7 @@ def run(ctx, max_x=None, **_):
     # 2. pair correlation h = 6 .. H
     hs = np.arange(6, H + 1, 6)
     rh = r_of_h(hs, p_max)
-    obs = np.array([int(np.isin(T + h, T).sum()) for h in hs])
+    obs = np.array([count_at_distance(T, int(h)) for h in hs])
     prd = np.array([S2 * S2 * r * _I4(int(h), max_x) for h, r in zip(hs, rh)])
     z = (obs - prd) / np.sqrt(prd)
     agg = obs.sum() / prd.sum()

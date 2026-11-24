@@ -6,7 +6,6 @@ from collections import Counter
 
 from ppa_real.agent.planner import Planner
 from ppa_real.core.ledger import Ledger
-from ppa_real.core.sieve import real_primes
 from ppa_real.skills import REGISTRY
 from ppa_real.skills.base import Context
 from ppa_real.truth.graveyard import FINGERPRINT as GRAVE_FP
@@ -15,15 +14,29 @@ from ppa_real.truth.graveyard import Graveyard, hypothesis_key
 FIXED = ("dr_gap", "fano", "spectrum", "gates", "curves", "candles", "spacing", "walk", "twins")
 
 
-def build_context(cfg: dict) -> Context:
+def build_store(cfg: dict):
+    """The prime store: streams primes block by block (CPU or GPU, optional disk cache).
+    Compute settings live in cfg['compute']; they change speed, never a test."""
+    from ppa_real.core.primestore import SEGMENT, PrimeStore
+    comp = cfg.get("compute", {})
+    max_n = cfg["range"]["max_n"]
+    cache = comp.get("cache") if max_n >= SEGMENT else None   # small runs: sieve on the fly
+    store = PrimeStore(cache, gpu=bool(comp.get("gpu", False)))
+    store.cross_check()
+    return store
+
+
+def build_context(cfg: dict, store=None) -> Context:
     max_n = cfg["range"]["max_n"]
     train = (max_n // 10, max_n // 2)
     test = (max_n // 2, max_n)
+    store = store or build_store(cfg)
     t = time.time()
-    P_train, P_test = real_primes(*train), real_primes(*test)
-    print(f"sieved {len(P_train) + len(P_test):,} primes in {time.time() - t:.1f}s "
-          f"(train {train[0]:.0e}-{train[1]:.0e}, test {test[0]:.0e}-{test[1]:.0e})")
-    return Context(cfg, train, test, P_train, P_test)
+    store.ensure(max_n)
+    print(f"primes streamed on {store.backend} (train {train[0]:.0e}-{train[1]:.0e}, "
+          f"test {test[0]:.0e}-{test[1]:.0e}); cross-check: {store.cross_check_result}"
+          + (f"; cache ready in {time.time() - t:.1f}s" if store.cache else ""))
+    return Context(cfg, train, test, None, None, store=store)
 
 
 def run_agent(cfg: dict, intent: str = "all") -> Ledger:
@@ -32,7 +45,10 @@ def run_agent(cfg: dict, intent: str = "all") -> Ledger:
                                                 "prereg_fingerprint": cfg.get("_fingerprint"),
                                                 "started": time.strftime("%Y-%m-%d %H:%M:%S")})
     needs_primes = intent not in ("curves", "candles", "spacing", "walk", "twins")
-    ctx = build_context(cfg) if needs_primes else Context(cfg, (0, 0), (0, 0), None, None)
+    store = build_store(cfg)
+    ledger.meta["backend"] = store.backend
+    ledger.meta["cross_check"] = store.cross_check_result
+    ctx = build_context(cfg, store) if needs_primes else Context(cfg, (0, 0), (0, 0), None, None, store=store)
 
     if needs_primes:  # contract rule 1
         print("calibrate")
