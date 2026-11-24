@@ -1,0 +1,82 @@
+# Pre-registration for the real-primes agent.
+#
+# Every test the agent runs, every threshold it judges by and every range it may run at is
+# written here BEFORE the data is looked at. The file is fingerprinted. The agent refuses to
+# run if this file changes while [registration].version stays the same: to change a test you
+# must declare a new version, and every result names the version and fingerprint it was
+# judged under. Tests are never changed to fit data.
+#
+# Rules fixed in this version:
+#   * only real primes, from 5 on (1 is not prime; 2 and 3 are left out to avoid the awkward
+#     start); no simulated, random or planted data in any measurement or any verdict
+#   * every yardstick is one of: an exact theorem checked on every prime, an exact formula
+#     (or a stated conjecture's formula), or real primes in another range
+#   * where no yardstick exists, the agent writes the argument chain instead: what is proved,
+#     what the pattern reduces to, and the open step
+
+[registration]
+version = 1
+registered = "2026-11-24"
+author = "arrancarcero, with Claude"
+seen_before_registration = [
+  "twin counts vs Hardy-Littlewood (1e6 to 1e9)",
+  "consecutive-twin metrics (dr repeat 0.312, tiny gaps 0.198, huge gaps 0.0445, Fano 0.778 at 1e9) and simulated nulls for them",
+  "transition results up to mod 72, lag 3, at 1e10 against simulated and gap-rule nulls",
+  "Fano B = -1.415 +- 0.017 at 1e10",
+  "zeta zero spacing, candles and walk results with planted or random comparison data",
+]
+
+[primes]
+start = 5
+
+[ranges]
+allowed = [1e7, 1e8, 1e9, 1e10]   # a run must use one of these as max_n
+default = 1e8
+
+[thresholds]
+z_survive = 4.0          # held-out z a transition pattern must beat
+corr_survive = 0.5       # train/test residual correlation it must beat
+formula_ratio = 0.02     # |observed / formula - 1| allowed for a 'matches' verdict
+formula_z = 4.0          # |z| allowed between a measurement and its formula (when a z exists)
+
+[planner]
+max_steps = 24
+start_moduli = [3, 4, 5, 8, 9, 10, 12, 24]
+start_lags = [1]
+max_modulus = 72
+max_lag = 3
+
+[transitions]
+# stage A: real primes vs independence built from the same real primes (row totals x column shares)
+# stage B: real primes vs the real gap rule (next class = class + real gap, gaps taken per class mod gcd(M, 210))
+
+[twins]
+pair_h_max = 180          # pair correlation measured for every h = 6, 12, ..., 180
+fano_block = 30030        # twins counted per block of this length
+fano_stretch = 1e7        # Fano computed within each stretch of this length (all but the first), then averaged;
+                          # Fano = variance of (count - Hardy-Littlewood expected count) / mean expected count
+                          # predicted from the Hardy-Littlewood pair correlation r(h), h < block
+measured_only = ["consecutive twins repeat the digital root", "consecutive twin gaps < 0.25 x average",
+                 "consecutive twin gaps > 3 x average"]   # no formula: reported with their argument chain
+singular_series_primes = 1e5   # Hardy-Littlewood products taken over primes up to this
+
+[candles]
+# psi(x) is built from prime powers p^k with p >= 5; the exact contribution of 2, 3 and their
+# powers, log 2 * floor(log2 x) + log 3 * floor(log3 x), is added back as a known formula term
+max_x = 1e8
+zeros = 10
+tolerance = 0.03          # largest |implied beta - 1/2| for 'steady'
+empty_frequency = 18.0    # a frequency with no zero below 50: must stay dark
+dark_ratio = 0.1
+
+[spacing]
+T = 3000
+high_T = 1e8
+high_width = 4000
+high_points = 262144
+
+[walk]
+arrows = 400000
+
+[output]
+runs_dir = "runs"
