@@ -26,3 +26,13 @@ def test_real_primes_start_at_5():
     from ppa_real.core.sieve import real_primes
     P = real_primes(0, 100)
     assert P[0] == 5 and 2 not in P and 3 not in P and len(P) == 25 - 2
+
+
+def test_gates_xor_with_large_primes():
+    import numpy as np
+    from ppa_real.core.sieve import real_primes
+    from ppa_real.skills.base import Context
+    from ppa_real.skills.gates import SKILL
+    P = real_primes(5 * 10 ** 9, 5 * 10 ** 9 + 10 ** 5)    # products overflow int64
+    f = SKILL.run(Context({}, (0, 0), (0, 0), None, P))[0]
+    assert "XOR rule holds: True" in f.summary

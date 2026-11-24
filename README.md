@@ -74,5 +74,24 @@ registration commit.
 zero's implied real part between 0.497 and 0.505; zero gaps fit GUE best at low and high
 heights; Fano B = -1.335 +- 0.181 (formula -1.4151); Hasse bound holds for every prime.
 
+## Run at 1e10 (registration v1, on the author's PC)
+
+The first run at this size under the frozen tests. Every registered test passes:
+
+| Test | Real | Formula | Verdict |
+| --- | --- | --- | --- |
+| Primes from 5 to 1e10 | 455,052,509 | pi(1e10) - 2 | exact |
+| Twin count | 27,412,679 | 27,411,417 | ratio 1.00005 |
+| Twin pairs at distance 6..180 | 12,898,810 | 12,897,555 | ratio 1.0001, largest \|z\| 1.9 |
+| Share at distance 0 mod 18 | 0.3179 | 0.3177 | z = +1.8 |
+| Twin Fano per 30030-block (999 stretches) | 0.8255 | 0.8268 | z = -0.6 |
+| Fano constant B | -1.415 +- 0.017 | -1.4151 | agrees |
+
+Both lemmas held on all 27,412,678 lower twins. Consecutive twins repeat their digital root
+0.3151 of the time (measured only). One instrument bug showed up: the gates XOR check multiplied
+two primes near 5e9 and overflowed 64-bit integers, so it reported "XOR rule holds: False". The
+check now reduces mod 24 before multiplying; the test itself is unchanged. The transitions seeds
+were skipped by the graveyard (buried up to 1e10), as registered.
+
 This agent cannot prove the twin prime conjecture or any other statement about infinitely many
 primes: it measures, and checks the measurements against theorems and stated conjectures.
