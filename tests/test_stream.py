@@ -49,3 +49,19 @@ def test_cache_is_two_bytes_per_prime(tmp_path):
     f = next(tmp_path.glob("seg*.npz"))
     z = np.load(f)
     assert z["gaps"].dtype == np.uint16 and int(z["count"]) == 50847534 - 2   # pi(1e9) minus 2 and 3
+
+
+def test_gpu_mode_hands_skills_numpy(tmp_path):
+    """With a GPU sieve, skills must still get NumPy arrays (no CuPy helper kernels)."""
+    s = PrimeStore(tmp_path / "c")
+    s._cp = object()                                  # pretend a GPU is present
+    s._sieve_block_gpu = s._sieve_block_cpu           # stand-in for the CUDA kernel
+    assert s.xp is np and s.cross_check()
+    lo, hi = 10 ** 6, 2 * 10 ** 6
+    for P in PrimeStore(block=300_000).blocks(lo, hi):
+        assert isinstance(P, np.ndarray)
+    s2 = PrimeStore(block=300_000)
+    s2._cp = object()
+    s2._sieve_block_gpu = s2._sieve_block_cpu
+    assert all(isinstance(P, np.ndarray) for P in s2.blocks(lo, hi))
+    assert np.array_equal(np.concatenate(list(s2.blocks(lo, hi))), primes_between(lo, hi))

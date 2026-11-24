@@ -31,14 +31,14 @@ ppa-real run --max 1e11 --gpu      # NVIDIA GPU (pip install cupy-cuda12x), cros
 ppa-real skills | truth | contract | graveyard
 ```
 
-## Speed and memory: streaming, cache, GPU
+## Speed and memory: streaming, cache, GPU sieve
 
 Primes are streamed block by block; every skill keeps only running totals, so memory no longer
 grows with the range (the full 1e10 run used 3.9 GB). From 1e9 up, each 1e9-wide segment is
 sieved once and cached on disk as its first prime plus 2-byte gaps (`.prime_cache/`, about
 0.9 GB for 1e10 and 8 GB for 1e11); later passes read the cache. `--cache none` turns it off.
 
-`--gpu` sieves on an NVIDIA GPU with one CUDA kernel launch per block (CuPy). Before a GPU run is
+`--gpu` sieves on an NVIDIA GPU with one CUDA kernel launch per block (CuPy); counting stays on the CPU, reading the cache, because CuPy's own helper kernels can fail to compile when its headers are newer than the installed CUDA compiler (seen on an RTX 5080: 1e11 cache built in 61 s, then bincount failed to compile). Before a GPU run is
 trusted, the same block is sieved on the GPU and the CPU and must match exactly; on any mismatch
 the run falls back to the CPU and the ledger says so (`meta.backend`, `meta.cross_check`). None of
 this changes a test: it only changes how fast the same primes arrive.

@@ -5,8 +5,11 @@ PrimeStore sieves [lo, hi) in blocks (default 1e8 numbers) and hands each block'
 writes every 1e9-wide segment to disk once, as its first prime plus uint16 gaps (2 bytes per
 prime; prime gaps below 1e12 are under 600), so later passes read instead of re-sieving.
 
-Backends: NumPy (CPU) or CuPy (NVIDIA GPU). The GPU sieve marks multiples with one CUDA
-kernel launch per block. Before a GPU run is trusted, cross_check() sieves the same blocks
+Backends: the sieve runs on NumPy (CPU) or CuPy (NVIDIA GPU); the GPU marks multiples with
+one CUDA kernel launch per block. Counting always runs on the CPU (NumPy), reading the
+cache: CuPy's own helper kernels (bincount, any) are compiled at run time with headers that
+can be newer than the installed CUDA compiler, and then fail; the agent's own sieve kernel
+needs no such headers. Skills therefore always receive NumPy arrays. Before a GPU run is trusted, cross_check() sieves the same blocks
 on both and demands identical primes; if they ever differ the store falls back to the CPU and
 says so. Nothing here changes a test: only how fast the same primes are produced.
 """
@@ -60,7 +63,10 @@ def to_numpy(a):
 
 class PrimeStore:
     def __init__(self, cache_dir: str | Path | None = None, gpu: bool = False, block: int = BLOCK):
-        self.xp, self.backend = get_backend(gpu)
+        cp, name = get_backend(gpu)
+        self._cp = None if cp is np else cp          # GPU used only for sieving
+        self.xp = np                                  # counting always on the CPU
+        self.backend = (name + " sieve, CPU counting") if self._cp is not None else name
         self.block = block
         self.cache = Path(cache_dir) if cache_dir else None
         if self.cache:
@@ -89,7 +95,7 @@ class PrimeStore:
         return np.nonzero(s)[0].astype(np.int64) + a
 
     def _sieve_block_gpu(self, a: int, b: int):
-        cp = self.xp
+        cp = self._cp
         if self._kernel is None:
             self._kernel = cp.RawKernel(_KERNEL, "mark")
         base = self._base_primes(b)
@@ -108,14 +114,14 @@ class PrimeStore:
             s[: START - a] = 0
         return cp.nonzero(s)[0].astype(cp.int64) + a
 
-    def sieve_block(self, a: int, b: int):
-        if self.xp is np:
+    def sieve_block(self, a: int, b: int) -> np.ndarray:
+        if self._cp is None:
             return self._sieve_block_cpu(a, b)
-        return self._sieve_block_gpu(a, b)
+        return to_numpy(self._sieve_block_gpu(a, b))
 
     def cross_check(self, blocks=((10 ** 8, 10 ** 8 + 10 ** 7),)) -> bool:
         """GPU and CPU must produce identical primes on the same blocks; else fall back to CPU."""
-        if self.xp is np:
+        if self._cp is None:
             self.cross_check_result = "CPU only (no cross-check needed)"
             return True
         for a, b in blocks:
@@ -125,7 +131,7 @@ class PrimeStore:
                 self.cross_check_result = (f"MISMATCH on [{a:.0e}, {b:.0e}): GPU {len(g)} primes, "
                                            f"CPU {len(c)}; falling back to CPU")
                 print(self.cross_check_result)
-                self.xp, self.backend = np, "CPU (NumPy, after failed GPU cross-check)"
+                self._cp, self.backend = None, "CPU (NumPy, after failed GPU cross-check)"
                 return False
         self.cross_check_result = f"GPU matched CPU exactly on {len(blocks)} block(s)"
         return True
